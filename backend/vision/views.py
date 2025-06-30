@@ -1,10 +1,14 @@
 import base64
 from rest_framework import viewsets, mixins, status, generics, permissions
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.utils import extend_schema
 
 from .models import ChangeDetectionLog, DeviceConfiguration
-from .serializers import ChangeDetectionLogSerializer, AnalysisRequestSerializer, DeviceConfigurationSerializer
+from .serializers import (
+    ChangeDetectionLogSerializer,
+    DeviceConfigurationSerializer,
+    ESP32ImageUploadSerializer
+)
 from .services import get_change_description_from_llm
 from .enums import OpenAIVisionModels
 
@@ -13,30 +17,24 @@ class ChangeDetectionViewSet(mixins.ListModelMixin,
                              mixins.RetrieveModelMixin,
                              mixins.CreateModelMixin,
                              viewsets.GenericViewSet):
+
     queryset = ChangeDetectionLog.objects.all()
-    serializer_class = ChangeDetectionLogSerializer
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return ESP32ImageUploadSerializer
+        return ChangeDetectionLogSerializer
 
     @extend_schema(
-        summary="Analyze Image Differences",
-        description="Upload two images to get an AI-generated description of the differences. You can optionally specify a model and custom prompt context.",
-        request={
-            'multipart/form-data': {
-                'type': 'object',
-                'properties': {
-                    'image1': {'type': 'string', 'format': 'binary'},
-                    'image2': {'type': 'string', 'format': 'binary'},
-                    'model': {'type': 'string', 'enum': [choice[0] for choice in OpenAIVisionModels.choices]},
-                    'prompt_context': {'type': 'string'}
-                },
-                'required': ['image1', 'image2']
-            }
-        },
+        summary="Analyze Image Differences (ESP32 Endpoint)",
+        description="Upload two images from a device. The AI model and prompt are determined by the central server "
+                    "configuration.",
         responses={201: ChangeDetectionLogSerializer}
     )
     def create(self, request, *args, **kwargs):
-        config_serializer = AnalysisRequestSerializer(data=request.data)
-        config_serializer.is_valid(raise_exception=True)
-        validated_data = config_serializer.validated_data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_images = serializer.validated_data
 
         device_config, _ = DeviceConfiguration.objects.get_or_create(pk=1)
 
@@ -44,8 +42,8 @@ class ChangeDetectionViewSet(mixins.ListModelMixin,
         prompt_context_to_use = validated_data.get('prompt_context') or device_config.prompt_context
 
         log_instance = ChangeDetectionLog.objects.create(
-            image1=validated_data['image1'],
-            image2=validated_data['image2'],
+            image1=validated_images['image1'],
+            image2=validated_images['image2'],
             model_used=model_to_use
         )
 
@@ -87,6 +85,7 @@ class AvailableModelsView(generics.GenericAPIView):
     Get a list of available OpenAI vision models for analysis.
     """
     serializer_class = None
+    permission_classes = [permissions.AllowAny]
 
     def get(self, request, *args, **kwargs):
         models = [{"name": choice[0], "description": choice[1]} for choice in OpenAIVisionModels.choices]

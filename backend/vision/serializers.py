@@ -21,3 +21,12 @@ class DeviceConfigurationSerializer(serializers.ModelSerializer):
         model = DeviceConfiguration
         fields = ['flash_enabled', 'delay_seconds', 'default_model', 'prompt_context', 'updated_at']
         read_only_fields = ['updated_at']
+
+
+class ESP32ImageUploadSerializer(serializers.Serializer):
+    """
+    A very simple serializer to validate that two images are uploaded.
+    This is specifically for the ESP32 endpoint.
+    """
+    image1 = serializers.ImageField(required=True)
+    image2 = serializers.ImageField(required=True)
