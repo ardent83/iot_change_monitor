@@ -1,0 +1,40 @@
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+
+# Virtual Environment
+# Standard names for virtual environments.
+venv/
+env/
+.venv/
+.env/
+
+# Secret Files
+.env
+.env.*
+!.env.example
+
+# Django specific files
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# Test & Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.pytest_cache/
+
+# IDE specific to this folder
+.idea/
+
+*.sqlite3
+*.db
+
+*.pyc
+
+.vscode/
+
+media
