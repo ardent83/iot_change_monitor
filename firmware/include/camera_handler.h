@@ -15,4 +15,20 @@ bool initCamera();
  */
 camera_fb_t* captureImage();
 
+/**
+ * @brief Initializes the flash module.
+ * This function sets up the GPIO pin for the flash if enabled.
+ */
+void initFlash();
+
+/**
+ * @brief Deinitializes the flash module.
+ */
+void deinitFlash();
+
+/**
+ * @brief Flushes the camera buffer by returning all frames.
+ */
+void flushCameraBuffer();
+
 #endif

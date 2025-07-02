@@ -6,20 +6,102 @@
 const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <title>ESP32-CAM Interface</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #121212; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-        .container { background-color: #1e1e1e; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5); text-align: center; max-width: 90%; width: 500px; }
-        h1 { color: #bb86fc; }
-        #live-view { border: 2px solid #333; border-radius: 8px; max-width: 100%; height: auto; margin-bottom: 1rem; background-color: #000; }
-        .controls { display: flex; flex-direction: column; gap: 1rem; align-items: center; }
-        button { background-color: #bb86fc; color: #121212; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s; }
-        button:hover { background-color: #a362ea; }
-        #status { margin-top: 1rem; font-style: italic; color: #888; }
-        .input-group { margin-bottom: 1rem; }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #f2f7f5, #e6f0ff);
+            color: #2e2e2e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: #ffffff;
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 90%;
+            width: 480px;
+            border: 1px solid #dfe6ec;
+        }
+
+        h1 {
+            color: #3366cc;
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+            align-items: center;
+        }
+
+        button {
+            background: linear-gradient(to right, #4f83cc, #4178c0);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.2s;
+        }
+
+        button:hover {
+            background-color: #345f9b;
+            transform: scale(1.05);
+        }
+
+        #status {
+            margin-top: 1.2rem;
+            font-style: italic;
+            color: #6b6b6b;
+        }
+
+        #live-view {
+            border: 2px solid #c9d8e8;
+            border-radius: 10px;
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 1rem;
+            background-color: #f4f7fa;
+        }
+
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-weight: 600;
+            color: #3c3c3c;
+        }
+
+        input[type="number"] {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #ccd5e0;
+            border-radius: 6px;
+            font-size: 1rem;
+            width: 80px;
+            background-color: #f7f9fb;
+            color: #333;
+        }
     </style>
 </head>
 <body>
@@ -43,7 +125,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
     setInterval(() => {
         liveView.src = '/view?t=' + new Date().getTime();
-    }, 2000);
+    }, 1000);
 
     captureBtn.addEventListener('click', () => {
         const delay = delayInput.value;
@@ -87,7 +169,7 @@ void handleCapture() {
     if (server.hasArg("delay")) {
         delay_sec = server.arg("delay").toInt();
     }
-    
+
     server.send(200, "text/plain", "Request received. Check Serial Monitor for results.");
     sendImagesToServer(delay_sec);
 }

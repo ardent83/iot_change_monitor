@@ -4,7 +4,9 @@
 #include <Arduino.h>
 
 // server URL for image uploads
-extern char DJANGO_SERVER_URL[100];
+extern char DJANGO_BASE_URL[100];
+extern const char* LOG_ENDPOINT;
+extern const char* ANALYZE_ENDPOINT; 
 
 // Flash Configuration
 extern const bool ENABLE_FLASH;

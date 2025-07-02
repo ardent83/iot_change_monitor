@@ -29,8 +29,9 @@ void sendImagesToServer(int delaySeconds) {
         return;
     }
 
+    String full_analyze_url = String(DJANGO_BASE_URL) + String(ANALYZE_ENDPOINT);
     ServerInfo server;
-    if (!parseUrl(DJANGO_SERVER_URL, server)) {
+    if (!parseUrl(full_analyze_url.c_str(), server)) {
         Serial.println("Failed to parse server URL.");
         esp_camera_fb_return(fb1);
         esp_camera_fb_return(fb2);

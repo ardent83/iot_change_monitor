@@ -46,15 +46,13 @@ camera_fb_t* captureImage() {
         digitalWrite(FLASH_GPIO_PIN, HIGH);
         delay(100);
     }
-    camera_fb_t* fb_flush = esp_camera_fb_get();
-    if (fb_flush) {
-        esp_camera_fb_return(fb_flush);
-    }
 
-    camera_fb_t *fb = esp_camera_fb_get();
+    flushCameraBuffer();
+
+    camera_fb_t* fb = esp_camera_fb_get();
 
     if (ENABLE_FLASH) {
-        digitalWrite(FLASH_GPIO_PIN, LOW);
+        deinitFlash();
     }
 
     if (!fb) {
@@ -62,4 +60,22 @@ camera_fb_t* captureImage() {
         return nullptr;
     }
     return fb;
+}
+
+void initFlash() {
+    pinMode(FLASH_GPIO_PIN, OUTPUT);
+    digitalWrite(FLASH_GPIO_PIN, LOW);
+}
+
+void deinitFlash() {
+    digitalWrite(FLASH_GPIO_PIN, LOW);
+}
+
+void flushCameraBuffer() {
+    for (int i = 0; i < 2; ++i) {
+        camera_fb_t* fb_flush = esp_camera_fb_get();
+        if (fb_flush) {
+            esp_camera_fb_return(fb_flush);
+        }
+    }
 }
