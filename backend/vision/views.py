@@ -1,40 +1,55 @@
 import base64
 from rest_framework import viewsets, mixins, status, generics, permissions
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.views.generic import TemplateView
 from drf_spectacular.utils import extend_schema
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 from .models import ChangeDetectionLog, DeviceConfiguration
+from .enums import OpenAIVisionModels
 from .serializers import (
     ChangeDetectionLogSerializer,
+    AnalysisRequestSerializer,
     DeviceConfigurationSerializer,
-    ESP32ImageUploadSerializer
 )
 from .services import get_change_description_from_llm
-from .enums import OpenAIVisionModels
 
 
 class ChangeDetectionViewSet(mixins.ListModelMixin,
                              mixins.RetrieveModelMixin,
                              mixins.CreateModelMixin,
                              viewsets.GenericViewSet):
-
     queryset = ChangeDetectionLog.objects.all()
 
     def get_serializer_class(self):
         if self.action == 'create':
-            return ESP32ImageUploadSerializer
+            return AnalysisRequestSerializer
         return ChangeDetectionLogSerializer
 
     @extend_schema(
-        summary="Analyze Image Differences (ESP32 Endpoint)",
-        description="Upload two images from a device. The AI model and prompt are determined by the central server "
-                    "configuration.",
+        summary="Analyze Image Differences",
+        description="Upload two images to get an AI-generated description of the differences. You can optionally "
+                    "specify a model and custom prompt context.",
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'properties': {
+                    'image1': {'type': 'string', 'format': 'binary'},
+                    'image2': {'type': 'string', 'format': 'binary'},
+                    'model': {'type': 'string', 'enum': [choice[0] for choice in OpenAIVisionModels.choices]},
+                    'prompt_context': {'type': 'string'}
+                },
+                'required': ['image1', 'image2']
+            }
+        },
         responses={201: ChangeDetectionLogSerializer}
     )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        validated_images = serializer.validated_data
+        validated_data = serializer.validated_data
 
         device_config, _ = DeviceConfiguration.objects.get_or_create(pk=1)
 
@@ -42,8 +57,8 @@ class ChangeDetectionViewSet(mixins.ListModelMixin,
         prompt_context_to_use = validated_data.get('prompt_context') or device_config.prompt_context
 
         log_instance = ChangeDetectionLog.objects.create(
-            image1=validated_images['image1'],
-            image2=validated_images['image2'],
+            image1=validated_data['image1'],
+            image2=validated_data['image2'],
             model_used=model_to_use
         )
 
@@ -90,3 +105,28 @@ class AvailableModelsView(generics.GenericAPIView):
     def get(self, request, *args, **kwargs):
         models = [{"name": choice[0], "description": choice[1]} for choice in OpenAIVisionModels.choices]
         return Response(models)
+
+
+class LogReceiverView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        message = request.data.get('message')
+        if message:
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                'esp32_log_group',
+                {
+                    'type': 'log.message',
+                    'message': message
+                }
+            )
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({'error': 'Message not provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class LogViewerView(TemplateView):
+    """
+    Serves the HTML page that will display the live logs.
+    """
+    template_name = 'vision/log_viewer.html'

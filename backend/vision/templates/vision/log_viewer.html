@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 Live Log Monitor</title>
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #1a1a1a;
+            color: #00ff00;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+            color: #ffffff;
+        }
+
+        #log-container {
+            width: 100%;
+            height: 80vh;
+            background-color: #000;
+            border: 1px solid #333;
+            overflow-y: scroll;
+            padding: 10px;
+            box-sizing: border-box;
+            white-space: pre-wrap;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+        }
+
+        .log-timestamp {
+            color: #888;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+<h1>ESP32 Live Log Monitor</h1>
+<div id="log-container"></div>
+
+<script>
+    const logContainer = document.getElementById('log-container');
+    const logSocket = new WebSocket(
+        'ws://' + window.location.host + '/ws/logs/'
+    );
+
+    logSocket.onopen = function (e) {
+        console.log('WebSocket connection established.');
+        addLogEntry('--- Connected to Log Server via WebSocket ---', '#00ffff');
+    };
+
+    logSocket.onmessage = function (e) {
+        const data = JSON.parse(e.data);
+        console.log('New log:', data.message);
+        addLogEntry(data.message);
+    };
+
+    logSocket.onclose = function (e) {
+        console.error('WebSocket connection closed unexpectedly.');
+        addLogEntry('--- Connection lost. Please refresh the page. ---', '#ff0000');
+    };
+
+    function addLogEntry(text, color = '#00ff00') {
+        const timestamp = new Date().toLocaleTimeString();
+        const newLog = document.createElement('div');
+        newLog.className = 'log-entry';
+        newLog.style.color = color;
+        newLog.innerHTML = `<span class="log-timestamp">${timestamp}</span>${text}`;
+        logContainer.appendChild(newLog);
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+</script>
+</body>
+</html>
