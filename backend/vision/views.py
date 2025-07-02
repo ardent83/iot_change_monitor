@@ -125,8 +125,8 @@ class LogReceiverView(APIView):
         return Response({'error': 'Message not provided'}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class LogViewerView(TemplateView):
+class DashboardView(TemplateView):
     """
-    Serves the HTML page that will display the live logs.
+    Serves the main HTML dashboard page.
     """
-    template_name = 'vision/log_viewer.html'
+    template_name = 'vision/dashboard.html'

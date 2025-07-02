@@ -5,7 +5,6 @@ from .views import (
     DeviceConfigurationView,
     AvailableModelsView,
     LogReceiverView,
-    LogViewerView
 )
 
 router = DefaultRouter()
@@ -17,5 +16,4 @@ urlpatterns = [
     path('models/', AvailableModelsView.as_view(), name='available-models'),
 
     path('log/', LogReceiverView.as_view(), name='log-receiver'),
-    path('log-viewer/', LogViewerView.as_view(), name='log-viewer'),
 ]

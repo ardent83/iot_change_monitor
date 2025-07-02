@@ -1,0 +1,70 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>داشبورد مانیتورینگ هوشمند</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'vision/css/dashboard.css' %}">
+</head>
+<body>
+<header class="main-header">
+    <h1>داشبورد مانیتورینگ هوشمند</h1>
+</header>
+<div class="dashboard-container">
+    <!-- Main Panel: Configurations and History -->
+    <main class="main-panel">
+        <!-- Device Configuration Section -->
+        <section class="card">
+            <h2 class="card-header">تنظیمات دستگاه و هوش مصنوعی</h2>
+            <form id="config-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="delay_seconds">تأخیر بین دو عکس (ثانیه)</label>
+                        <input type="number" id="delay_seconds" name="delay_seconds" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="default_model">مدل پیش‌فرض AI</label>
+                        <select id="default_model" name="default_model" required></select>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="flash_enabled" name="flash_enabled">
+                        <label for="flash_enabled">فعال بودن فلاش ESP32</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="prompt_context">پرامپ سفارشی برای AI</label>
+                    <textarea id="prompt_context" name="prompt_context" rows="3"
+                              placeholder="مثال: تمرکز بر روی خطر آتش‌سوزی یا ورود افراد ناشناس باشد..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <span id="config-status" class="status-message"></span>
+                    <button type="submit" class="button button-primary">ذخیره تنظیمات</button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Analysis History Section -->
+        <section class="card">
+            <h2 class="card-header">تاریخچه تحلیل‌ها</h2>
+            <div id="history-container">
+                <p>در حال بارگذاری تاریخچه...</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Side Panel: Live Log Monitor -->
+    <aside class="side-panel">
+        <h2 class="card-header card-header-2">لاگ مانیتور زنده</h2>
+        <div id="log-container">
+            <!-- Live logs will be injected here by JavaScript -->
+        </div>
+    </aside>
+</div>
+
+<script src="{% static 'vision/js/dashboard.js' %}"></script>
+</body>
+</html>
