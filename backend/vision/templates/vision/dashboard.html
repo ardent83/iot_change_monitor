@@ -13,10 +13,30 @@
 <body>
 <header class="main-header">
     <h1>داشبورد مانیتورینگ هوشمند</h1>
+    <nav>
+        <a href="/auth/guide/" class="header-link">راهنمای کاربر</a>
+        <button id="logout-btn" class="button button-secondary">خروج</button>
+    </nav>
 </header>
 <div class="dashboard-container">
-    <!-- Main Panel: Configurations and History -->
+    <!-- Main Panel -->
     <main class="main-panel">
+        <!-- API Key Management Section -->
+        <section class="card">
+            <h2 class="card-header">کلیدهای API برای دستگاه‌ها</h2>
+            <div id="api-key-list">
+                <p>در حال بارگذاری کلیدها...</p>
+            </div>
+            <div class="api-key-actions form-group">
+                <input type="text" id="api-key-name" placeholder="نام کلید (مثلا: دوربین باغ)"/>
+                <button id="generate-key-btn" class="button button-primary">ساخت کلید جدید</button>
+            </div>
+            <div id="new-api-key-container" class="new-key-alert" style="display:none;">
+                <strong>کلید جدید شما (فقط یک بار نمایش داده می‌شود، آن را کپی کنید):</strong>
+                <pre id="new-api-key"></pre>
+            </div>
+        </section>
+
         <!-- Device Configuration Section -->
         <section class="card">
             <h2 class="card-header">تنظیمات دستگاه و هوش مصنوعی</h2>
@@ -36,7 +56,7 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="prompt_context">پرامپ سفارشی برای AI</label>
+                    <label for="prompt_context">دستورالعمل سفارشی برای AI</label>
                     <textarea id="prompt_context" name="prompt_context" rows="3"
                               placeholder="مثال: تمرکز بر روی خطر آتش‌سوزی یا ورود افراد ناشناس باشد..."></textarea>
                 </div>

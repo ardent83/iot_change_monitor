@@ -1,10 +1,72 @@
-document.addEventListener('DOMContentLoaded', () => {
-    setupWebSocket();
-    fetchConfigAndPopulateForm();
-    fetchAnalysisHistory();
+/* ==========================================================================
+فایل: vision/static/vision/js/dashboard.js (نسخه نهایی و اصلاح شده)
+========================================================================== */
 
-    const configForm = document.getElementById('config-form');
-    configForm.addEventListener('submit', handleConfigUpdate);
+// --- Helper Functions for Authenticated API calls ---
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+const csrftoken = getCookie('csrftoken');
+
+async function authFetch(url, options = {}) {
+    const defaultHeaders = {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken,
+    };
+
+    const config = {
+        ...options,
+        // --- FIX: Sending credentials (cookies) with the request ---
+        credentials: 'include',
+        headers: {
+            ...defaultHeaders,
+            ...options.headers,
+        },
+    };
+
+    const response = await fetch(url, config);
+
+    if (response.status === 403 || response.status === 401) {
+        window.location.href = '/auth/login/';
+        throw new Error('Authentication failed');
+    }
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    if (response.status === 204) {
+        return null;
+    }
+    return response.json();
+}
+
+// --- Main Application Logic ---
+document.addEventListener('DOMContentLoaded', () => {
+    authFetch('/api/vision/config/').then(() => {
+        setupWebSocket();
+        fetchConfigAndPopulateForm();
+        fetchAnalysisHistory();
+        setupApiKeyManagement();
+
+        document.getElementById('config-form').addEventListener('submit', handleConfigUpdate);
+        document.getElementById('logout-btn').addEventListener('click', handleLogout);
+    }).catch(error => {
+        console.log("Redirecting to login page due to auth error.");
+    });
 });
 
 // --- WebSocket for Live Logs ---
@@ -35,8 +97,8 @@ function setupWebSocket() {
 async function fetchConfigAndPopulateForm() {
     try {
         const [config, models] = await Promise.all([
-            fetch('/api/vision/config/').then(res => res.json()),
-            fetch('/api/vision/models/').then(res => res.json())
+            authFetch('/api/vision/config/'),
+            authFetch('/api/vision/models/')
         ]);
 
         document.getElementById('flash_enabled').checked = config.flash_enabled;
@@ -74,17 +136,10 @@ async function handleConfigUpdate(event) {
     statusEl.style.color = 'var(--text-secondary)';
 
     try {
-        const response = await fetch('/api/vision/config/', {
+        await authFetch('/api/vision/config/', {
             method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-            },
             body: JSON.stringify(data)
         });
-
-        if (!response.ok) {
-            throw new Error(`Server responded with ${response.status}`);
-        }
 
         statusEl.textContent = 'تنظیمات با موفقیت ذخیره شد!';
         statusEl.style.color = 'var(--color-success)';
@@ -98,14 +153,11 @@ async function handleConfigUpdate(event) {
     }
 }
 
-// --- Analysis History ---
+// --- Analysis History with Lazy Loading ---
 async function fetchAnalysisHistory() {
     const historyContainer = document.getElementById('history-container');
     try {
-        const response = await fetch('/api/vision/logs/');
-        if (!response.ok) throw new Error('Network response was not ok.');
-
-        const logs = await response.json();
+        const logs = await authFetch('/api/vision/logs/');
 
         historyContainer.innerHTML = '';
         if (logs.length === 0) {
@@ -118,6 +170,9 @@ async function fetchAnalysisHistory() {
             historyContainer.appendChild(card);
         });
 
+        // After rendering all cards, set up lazy loading for the images
+        setupLazyLoading();
+
     } catch (error) {
         console.error("Failed to fetch analysis history:", error);
         historyContainer.innerHTML = '<p>خطا در دریافت تاریخچه تحلیل‌ها.</p>';
@@ -127,13 +182,13 @@ async function fetchAnalysisHistory() {
 function createHistoryCard(log) {
     const card = document.createElement('div');
     card.className = 'history-card';
+    const formattedDate = new Date(log.created_at).toLocaleString('fa-IR', {dateStyle: 'short', timeStyle: 'short'});
 
-    const formattedDate = new Date(log.created_at).toLocaleString('fa-IR', { dateStyle: 'short', timeStyle: 'short' });
-
+    // Use data-src for lazy loading and a placeholder in src
     card.innerHTML = `
         <div class="images">
-            <a href="${log.image1}" target="_blank"><img src="${log.image1}" alt="Before"></a>
-            <a href="${log.image2}" target="_blank"><img src="${log.image2}" alt="After"></a>
+            <a href="${log.image1}" target="_blank"><img class="lazy" data-src="${log.image1}" src="https://placehold.co/400x300/f8f9fa/dee2e6?text=Loading..." alt="Before"></a>
+            <a href="${log.image2}" target="_blank"><img class="lazy" data-src="${log.image2}" src="https://placehold.co/400x300/f8f9fa/dee2e6?text=Loading..." alt="After"></a>
         </div>
         <div class="details">
             <p>${log.description || 'توضیحی ثبت نشده است.'}</p>
@@ -142,4 +197,124 @@ function createHistoryCard(log) {
         </div>
     `;
     return card;
+}
+
+function setupLazyLoading() {
+    const lazyImages = document.querySelectorAll('img.lazy');
+
+    const imageObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const image = entry.target;
+                image.src = image.dataset.src;
+                image.classList.remove('lazy');
+                observer.unobserve(image);
+            }
+        });
+    });
+
+    lazyImages.forEach(image => {
+        imageObserver.observe(image);
+    });
+}
+
+
+// --- API Key Management ---
+function setupApiKeyManagement() {
+    const generateBtn = document.getElementById('generate-key-btn');
+    const apiKeyListContainer = document.getElementById('api-key-list');
+
+    generateBtn.addEventListener('click', handleGenerateKey);
+
+    apiKeyListContainer.addEventListener('click', (event) => {
+        if (event.target.classList.contains('delete-key-btn')) {
+            const keyPrefix = event.target.dataset.prefix;
+            if (confirm(`آیا از حذف کلید با پیشوند ${keyPrefix} مطمئن هستید؟`)) {
+                handleDeleteKey(keyPrefix);
+            }
+        }
+    });
+
+    fetchApiKeys();
+}
+
+async function fetchApiKeys() {
+    const apiKeyListContainer = document.getElementById('api-key-list');
+    try {
+        const keys = await authFetch('/auth/api/keys/');
+        apiKeyListContainer.innerHTML = '';
+        if (keys.length === 0) {
+            apiKeyListContainer.innerHTML = '<p>هیچ کلید API ساخته نشده است.</p>';
+            return;
+        }
+        const list = document.createElement('ul');
+        list.className = 'key-list';
+        keys.forEach(key => {
+            const item = document.createElement('li');
+            const formattedDate = new Date(key.created).toLocaleDateString('fa-IR');
+            item.innerHTML = `
+                <div>
+                    <span class="key-name">${key.name}</span>
+                    <span class="key-prefix">پیشوند: ${key.prefix}</span>
+                </div>
+                <div>
+                    <span class="key-date">ساخته شده در: ${formattedDate}</span>
+                    <button class="button button-danger delete-key-btn" data-prefix="${key.prefix}">حذف</button>
+                </div>
+            `;
+            list.appendChild(item);
+        });
+        apiKeyListContainer.appendChild(list);
+    } catch (error) {
+        console.error("Failed to fetch API keys:", error);
+        apiKeyListContainer.innerHTML = '<p>خطا در دریافت لیست کلیدها.</p>';
+    }
+}
+
+async function handleGenerateKey() {
+    const keyNameInput = document.getElementById('api-key-name');
+    const name = keyNameInput.value.trim() || 'esp32-device';
+
+    try {
+        const newKeyData = await authFetch('/auth/api/keys/', {
+            method: 'POST',
+            body: JSON.stringify({name: name})
+        });
+
+        const newKeyContainer = document.getElementById('new-api-key-container');
+        const newKeyElement = document.getElementById('new-api-key');
+
+        newKeyElement.textContent = newKeyData.key;
+        newKeyContainer.style.display = 'block';
+
+        keyNameInput.value = '';
+        fetchApiKeys();
+
+    } catch (error) {
+        console.error("Failed to generate API key:", error);
+        alert('خطا در ساخت کلید جدید.');
+    }
+}
+
+async function handleDeleteKey(prefix) {
+    try {
+        await authFetch(`/auth/api/keys/${prefix}/`, {
+            method: 'DELETE',
+        });
+        fetchApiKeys();
+    } catch (error) {
+        console.error(`Failed to delete key ${prefix}:`, error);
+        alert('خطا در حذف کلید.');
+    }
+}
+
+// --- Logout ---
+async function handleLogout() {
+    try {
+        await authFetch('/auth/api/logout/', {method: 'POST'});
+        window.location.href = '/auth/login/';
+    } catch (error) {
+        console.error('Logout failed:', error);
+        alert('خروج از سیستم با خطا مواجه شد.');
+    }
 }

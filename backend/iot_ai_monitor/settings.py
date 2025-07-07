@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 from decouple import config
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -40,10 +41,12 @@ INSTALLED_APPS = [
 
     # Third-party apps
     'rest_framework',
+    'rest_framework_api_key',
     'drf_spectacular',
 
     # Local apps
     'vision',
+    'authentication'
 ]
 
 MIDDLEWARE = [
@@ -153,6 +156,29 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.SessionAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
 }
 
+API_KEY_CUSTOM_HEADER = "HTTP_X_API_KEY"
+API_KEY_MODEL = "authentication.UserAPIKey"
+
+LOGIN_URL = '/auth/login/'
+LOGIN_REDIRECT_URL = '/dashboard/'
+LOGOUT_REDIRECT_URL = '/auth/login/'
+
+
 GRIP_URL = 'http://pushpin:5561'
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Project API Documentation',
+    'DESCRIPTION': 'documentation',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SCHEMA_PATH_PREFIX_TRIM': False,
+    'SCHEMA_PATH_PREFIX': '/api'
+}

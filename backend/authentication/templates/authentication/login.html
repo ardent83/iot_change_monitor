@@ -1,0 +1,32 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>ورود به سیستم</title>
+    <link rel="stylesheet" href="{% static 'authentication/css/auth.css' %}">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <h2>ورود به حساب کاربری</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="username">نام کاربری</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">رمز عبور</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="button">ورود</button>
+                <p id="error-message" class="error-message"></p>
+            </form>
+            <div class="switch-link">
+                حساب کاربری ندارید؟ <a href="/auth/register/">ثبت‌نام کنید</a>
+            </div>
+        </div>
+    </div>
+    <script src="{% static 'authentication/js/auth.js' %}"></script>
+</body>
+</html>

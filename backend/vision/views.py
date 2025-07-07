@@ -16,11 +16,20 @@ from .serializers import (
 )
 from .services import get_change_description_from_llm
 
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_api_key.permissions import HasAPIKey
+from authentication.models import UserAPIKey
+
+
+class HasUserAPIKey(HasAPIKey):
+    model = UserAPIKey
+
 
 class ChangeDetectionViewSet(mixins.ListModelMixin,
                              mixins.RetrieveModelMixin,
                              mixins.CreateModelMixin,
                              viewsets.GenericViewSet):
+    permission_classes = [HasUserAPIKey | IsAuthenticated]
     queryset = ChangeDetectionLog.objects.all()
 
     def get_serializer_class(self):
@@ -88,7 +97,7 @@ class DeviceConfigurationView(generics.RetrieveUpdateAPIView):
     """
     queryset = DeviceConfiguration.objects.all()
     serializer_class = DeviceConfigurationSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [HasUserAPIKey | IsAuthenticated]
 
     def get_object(self):
         obj, created = DeviceConfiguration.objects.get_or_create(pk=1)
@@ -100,7 +109,6 @@ class AvailableModelsView(generics.GenericAPIView):
     Get a list of available OpenAI vision models for analysis.
     """
     serializer_class = None
-    permission_classes = [permissions.AllowAny]
 
     def get(self, request, *args, **kwargs):
         models = [{"name": choice[0], "description": choice[1]} for choice in OpenAIVisionModels.choices]
@@ -108,7 +116,7 @@ class AvailableModelsView(generics.GenericAPIView):
 
 
 class LogReceiverView(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [HasUserAPIKey]
 
     def post(self, request, *args, **kwargs):
         message = request.data.get('message')
