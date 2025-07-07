@@ -1,4 +1,4 @@
-#include "server_handler.h"
+#include "ai_handler.h"
 #include "config.h"
 #include "camera_handler.h"
 #include <WiFiClient.h>
@@ -67,6 +67,7 @@ void sendImagesToServer(int delaySeconds) {
     
     client->printf("POST %s HTTP/1.1\r\n", server.path.c_str());
     client->printf("Host: %s\r\n", server.host.c_str());
+    client->printf("X-Api-Key: %s\r\n", API_KEY);
     client->println("Connection: close");
     client->printf("Content-Length: %u\r\n", total_len);
     client->printf("Content-Type: multipart/form-data; boundary=%s\r\n", boundary.c_str());

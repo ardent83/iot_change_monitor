@@ -1,11 +1,13 @@
 #include <Arduino.h>
 #include <WiFiManager.h>
-
+#include <SPIFFS.h>
 #include "config.h"
+#include "config_handler.h"
 #include "camera_handler.h"
+#include "log_handler.h"
+#include "ai_handler.h"
 #include "web_server_handler.h"
 #include "log_handler.h"
-#include "server_handler.h"
 
 void saveConfigCallback() {
     sendLogToServer("Configuration saved via WiFiManager.");
@@ -16,38 +18,53 @@ void setup() {
     Serial.begin(115200);
     Serial.println("\nSystem starting...");
 
+    checkFactoryReset();
+
+    loadConfiguration();
+
     WiFiManager wm;
 
     WiFiManagerParameter custom_server_url("server", "Django Server Base URL", DJANGO_BASE_URL, 100);
+    WiFiManagerParameter custom_api_key("apikey", "Your API Key", API_KEY, 65);
+    
     wm.addParameter(&custom_server_url);
-    wm.setSaveConfigCallback(saveConfigCallback);
+    wm.addParameter(&custom_api_key);
 
-    bool res = wm.autoConnect("ESP-MONITOR-SETUP"); 
-
-    if (!res) {
-        Serial.println("Failed to connect and hit timeout");
+    if (!wm.autoConnect("ESP-MONITOR-SETUP")) {
+        Serial.println("Failed to connect and hit timeout. Restarting...");
+        delay(3000);
         ESP.restart();
     }
 
     strcpy(DJANGO_BASE_URL, custom_server_url.getValue());
-    Serial.print("Django Server URL is now: ");
-    Serial.println(DJANGO_BASE_URL);
+    strcpy(API_KEY, custom_api_key.getValue());
 
-    String ip = WiFi.localIP().toString();
+    saveConfiguration();
+
+    Serial.println("\nWiFi Connected Successfully!");
     sendLogToServer("WiFi Connected Successfully.");
-    sendLogToServer("Device IP Address: " + ip);
-    sendLogToServer("Confirmed connection to server: " + String(DJANGO_BASE_URL));
-    
-    Serial.println("WiFi Connected!");
-    Serial.print("Device IP: ");
-    Serial.println(ip);
+
+    String ip_message = "Device IP Address: " + WiFi.localIP().toString();
+    Serial.println(ip_message);
+    sendLogToServer(ip_message);
+
+    String server_msg = "Server URL set to: " + String(DJANGO_BASE_URL);
+    Serial.println(server_msg);
+    sendLogToServer(server_msg);
+
+    String key_message = "API Key configured, starting with: " + String(API_KEY).substring(0, 8);
+    Serial.println(key_message);
+    sendLogToServer(key_message);
 
     if (!initCamera()) {
-        sendLogToServer("CRITICAL: Halting due to camera failure.");
-        Serial.println("Halting due to camera failure.");
+        Serial.println("CRITICAL: Camera initialization failed. Halting.");
+        sendLogToServer("CRITICAL: Camera initialization failed. Halting.");
         while (true) { delay(1000); }
     }
     
+    Serial.println("Camera initialized successfully.");
+    sendLogToServer("Camera initialized successfully.");
+
     initServer();
 }
 

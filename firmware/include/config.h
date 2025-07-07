@@ -6,11 +6,15 @@
 // server URL for image uploads
 extern char DJANGO_BASE_URL[100];
 extern const char* LOG_ENDPOINT;
-extern const char* ANALYZE_ENDPOINT; 
+extern const char* ANALYZE_ENDPOINT;
+extern char API_KEY[65];
 
 // Flash Configuration
 extern const bool ENABLE_FLASH;
 #define FLASH_GPIO_PIN 4
+
+// Reset Button Pin
+#define RESET_BUTTON_PIN 13
 
 // ESP32-CAM Pin Definitions
 #define PWDN_GPIO_NUM     32

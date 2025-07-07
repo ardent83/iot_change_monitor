@@ -15,6 +15,7 @@ void sendLogToServer(const String& message) {
     HTTPClient http;
     http.begin(full_log_url);
     http.addHeader("Content-Type", "application/json");
+    http.addHeader("X-Api-Key", API_KEY); 
     http.setTimeout(5000);
 
     JSONVar jsonPayload;

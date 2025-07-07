@@ -1,6 +1,6 @@
 #include "web_server_handler.h"
 #include "camera_handler.h"
-#include "server_handler.h"
+#include "ai_handler.h"
 #include <WebServer.h>
 
 const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
