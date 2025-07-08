@@ -1,131 +1,153 @@
 import base64
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.generic import TemplateView
+from django.http import HttpResponse, Http404
+from django.shortcuts import get_object_or_404
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from drf_spectacular.utils import extend_schema
 from rest_framework import viewsets, mixins, status, generics, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.views.generic import TemplateView
-from drf_spectacular.utils import extend_schema
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.exceptions import PermissionDenied
+from authentication.authentication import APIKeyAuthentication
 
-from .models import ChangeDetectionLog, DeviceConfiguration
 from .enums import OpenAIVisionModels
+from .models import ChangeDetectionLog
 from .serializers import (
-    ChangeDetectionLogSerializer,
     AnalysisRequestSerializer,
-    DeviceConfigurationSerializer,
+    ChangeDetectionLogSerializer,
 )
 from .services import get_change_description_from_llm
 
-from rest_framework.permissions import IsAuthenticated
-from rest_framework_api_key.permissions import HasAPIKey
-from authentication.models import UserAPIKey
 
-
-class HasUserAPIKey(HasAPIKey):
-    model = UserAPIKey
-
-
-class ChangeDetectionViewSet(mixins.ListModelMixin,
-                             mixins.RetrieveModelMixin,
-                             mixins.CreateModelMixin,
-                             viewsets.GenericViewSet):
-    permission_classes = [HasUserAPIKey | IsAuthenticated]
-    queryset = ChangeDetectionLog.objects.all()
-
-    def get_queryset(self):
-        user = self.request.user
-        return ChangeDetectionLog.objects.filter(user=user)
+class ChangeDetectionViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.CreateModelMixin,
+    viewsets.GenericViewSet,
+):
+    authentication_classes = [SessionAuthentication, APIKeyAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_serializer_class(self):
-        if self.action == 'create':
+        if self.action == "create":
             return AnalysisRequestSerializer
         return ChangeDetectionLogSerializer
 
-    @extend_schema(
-        summary="Analyze Image Differences",
-        description="Upload two images to get an AI-generated description of the differences. You can optionally "
-                    "specify a model and custom prompt context.",
-        request={
-            'multipart/form-data': {
-                'type': 'object',
-                'properties': {
-                    'image1': {'type': 'string', 'format': 'binary'},
-                    'image2': {'type': 'string', 'format': 'binary'},
-                    'model': {'type': 'string', 'enum': [choice[0] for choice in OpenAIVisionModels.choices]},
-                    'prompt_context': {'type': 'string'}
-                },
-                'required': ['image1', 'image2']
-            }
-        },
-        responses={201: ChangeDetectionLogSerializer}
-    )
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        validated_data = serializer.validated_data
+    def get_queryset(self):
+        return ChangeDetectionLog.objects.filter(user=self.request.user)
 
-        device_config, _ = DeviceConfiguration.objects.get_or_create(pk=1)
+    def perform_create(self, serializer):
+        api_key = self.request.auth
+        if not api_key:
+            raise permissions.PermissionDenied("This endpoint can only be used with an API Key.")
 
-        model_to_use = validated_data.get('model') or device_config.default_model
-        prompt_context_to_use = validated_data.get('prompt_context') or device_config.prompt_context
+        config = api_key.config
 
-        log_instance = ChangeDetectionLog.objects.create(
-            user=request.user,
-            image1=validated_data['image1'],
-            image2=validated_data['image2'],
-            model_used=model_to_use
+        model_to_use = serializer.validated_data.get("model") or config.default_model
+        prompt_context_to_use = (
+                serializer.validated_data.get("prompt_context") or config.prompt_context
         )
+
+        log_instance = serializer.save(user=self.request.user, model_used=model_to_use)
 
         try:
             with open(log_instance.image1.path, "rb") as f:
-                image1_base64 = base64.b64encode(f.read()).decode('utf-8')
+                image1_base64 = base64.b64encode(f.read()).decode("utf-8")
             with open(log_instance.image2.path, "rb") as f:
-                image2_base64 = base64.b64encode(f.read()).decode('utf-8')
+                image2_base64 = base64.b64encode(f.read()).decode("utf-8")
         except (IOError, FileNotFoundError) as e:
             log_instance.delete()
-            return Response({"error": f"Could not read saved image files: {e}"},
-                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            raise e
 
-        description = get_change_description_from_llm(image1_base64, image2_base64, model_to_use, prompt_context_to_use)
+        description = get_change_description_from_llm(
+            image1_base64, image2_base64, model_to_use, prompt_context_to_use
+        )
 
         log_instance.description = description
         log_instance.save()
 
-        final_serializer = ChangeDetectionLogSerializer(log_instance)
-        return Response(final_serializer.data, status=status.HTTP_201_CREATED)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            self.perform_create(serializer)
+        except (IOError, FileNotFoundError):
+            return Response(
+                {"error": "Could not read saved image files after upload."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except permissions.PermissionDenied as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            serializer.data, status=status.HTTP_201_CREATED, headers=headers
+        )
 
 
-class AvailableModelsView(generics.GenericAPIView):
-    """
-    Get a list of available OpenAI vision models for analysis.
-    """
-    serializer_class = None
+class AvailableModelsView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        models = [{"name": choice[0], "description": choice[1]} for choice in OpenAIVisionModels.choices]
+        models = [
+            {"name": choice[0], "description": choice[1]}
+            for choice in OpenAIVisionModels.choices
+        ]
         return Response(models)
 
 
 class LogReceiverView(APIView):
-    permission_classes = [HasUserAPIKey]
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        message = request.data.get('message')
+        message = request.data.get("message")
         if message:
+            user = request.user
+            api_key_object = request.auth
             channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                'esp32_log_group',
-                {
-                    'type': 'log.message',
-                    'message': message
-                }
-            )
+            group_name = f"user_{user.id}_logs"
+            log_payload = {
+                "type": "log.message",
+                "prefix": api_key_object.prefix,
+                "message": message,
+            }
+            async_to_sync(channel_layer.group_send)(group_name, log_payload)
             return Response(status=status.HTTP_204_NO_CONTENT)
-        return Response({'error': 'Message not provided'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": "Message not provided"}, status=status.HTTP_400_BAD_REQUEST
+        )
 
 
-class DashboardView(TemplateView):
-    """
-    Serves the main HTML dashboard page.
-    """
-    template_name = 'vision/dashboard.html'
+class DashboardView(LoginRequiredMixin, TemplateView):
+    template_name = "vision/dashboard.html"
+
+
+class ProtectedMediaView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, log_id, image_field):
+        log = get_object_or_404(ChangeDetectionLog, id=log_id)
+
+        if log.user != request.user:
+            raise PermissionDenied("You do not have permission to access this file.")
+
+        image_file = None
+        if image_field == 'image1' and log.image1:
+            image_file = log.image1
+        elif image_field == 'image2' and log.image2:
+            image_file = log.image2
+        else:
+            raise Http404("Image not found.")
+
+        try:
+            with image_file.open('rb') as f:
+                return HttpResponse(f.read(), content_type='image/jpeg')
+        except IOError:
+            raise Http404("Image file could not be opened.")
+

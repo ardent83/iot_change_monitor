@@ -1,6 +1,11 @@
 import requests
 from decouple import config
 import base64
+import logging
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logger = logging.getLogger(__name__)
 
 
 def get_change_description_from_llm(image1_base64: str, image2_base64: str, model_name: str,
@@ -9,6 +14,7 @@ def get_change_description_from_llm(image1_base64: str, image2_base64: str, mode
     api_url = config('LLM_API_URL', default='')
 
     if not api_key or not api_url:
+        logger.warning("LLM service API Key or URL is not configured.")
         return "LLM service API Key or URL is not configured."
 
     headers = {
@@ -41,16 +47,28 @@ def get_change_description_from_llm(image1_base64: str, image2_base64: str, mode
         ]
     }
 
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=3,
+        status_forcelist=[429, 500, 502, 503, 504],
+        backoff_factor=1
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+
+    response = None
     try:
-        response = requests.post(api_url, headers=headers, json=json_payload, timeout=180, verify=False)
+        response = session.post(api_url, headers=headers, json=json_payload, timeout=180, verify=False)
         response.raise_for_status()
         data = response.json()
         description = data['output'][0]['content'][0]['text']
         return description
 
     except requests.exceptions.RequestException as e:
-        print(f"Error calling LLM service: {e}")
+        logger.error(f"Error calling LLM service: {e}")
         return "Error connecting to the analysis service."
     except (KeyError, IndexError, TypeError) as e:
-        print(f"Error parsing LLM response structure: {e}. Response was: {data}")
+        data_preview = str(response.json())[:200] if 'response' in locals() else "N/A"
+        logger.error(f"Error parsing LLM response structure: {e}. Response preview: {data_preview}")
         return "Could not parse the response from the analysis service."

@@ -4,6 +4,7 @@ from .views import (
     ChangeDetectionViewSet,
     AvailableModelsView,
     LogReceiverView,
+    ProtectedMediaView,
 )
 
 router = DefaultRouter()
@@ -13,4 +14,5 @@ urlpatterns = [
     path('', include(router.urls)),
     path('models/', AvailableModelsView.as_view(), name='available-models'),
     path('log/', LogReceiverView.as_view(), name='log-receiver'),
+    path('media/<uuid:log_id>/<str:image_field>/', ProtectedMediaView.as_view(), name='protected-media'),
 ]

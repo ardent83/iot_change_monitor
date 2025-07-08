@@ -1,15 +1,32 @@
 from rest_framework import serializers
+from django.urls import reverse
 from .models import ChangeDetectionLog, DeviceConfiguration
 from .enums import OpenAIVisionModels
 
 
 class ChangeDetectionLogSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField(read_only=True)
+    image1_url = serializers.SerializerMethodField()
+    image2_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ChangeDetectionLog
-        fields = ['id', 'user', 'image1', 'image2', 'model_used', 'description', 'created_at']
-        read_only_fields = ['id', 'user', 'description', 'created_at']
+        fields = [
+            'id', 'user', 'model_used', 'description', 'created_at',
+            'image1_url', 'image2_url'
+        ]
+
+    def get_image1_url(self, obj):
+        request = self.context.get('request')
+        return request.build_absolute_uri(
+            reverse('protected-media', kwargs={'log_id': obj.id, 'image_field': 'image1'})
+        )
+
+    def get_image2_url(self, obj):
+        request = self.context.get('request')
+        return request.build_absolute_uri(
+            reverse('protected-media', kwargs={'log_id': obj.id, 'image_field': 'image2'})
+        )
 
 
 class AnalysisRequestSerializer(serializers.Serializer):

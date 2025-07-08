@@ -20,18 +20,25 @@ async function authFetch(url, options = {}) {
         'Content-Type': 'application/json',
         'X-CSRFToken': csrftoken,
     };
-    const config = {...options, credentials: 'include', headers: {...defaultHeaders, ...options.headers}};
+    const config = {
+        ...options,
+        credentials: 'include',
+        headers: {
+            ...defaultHeaders,
+            ...options.headers,
+        },
+    };
+
     const response = await fetch(url, config);
     if (response.status === 403 || response.status === 401) {
         window.location.href = '/auth/login/';
         throw new Error('Authentication failed');
     }
     if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
     }
-    if (response.status === 204) return null;
-    return response.json();
+
+    return response;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -74,7 +81,7 @@ closeBtn.onclick = () => {
     modal.style.display = "none";
 };
 window.onclick = (event) => {
-    if (event.target == modal) {
+    if (event.target === modal) {
         modal.style.display = "none";
     }
 };
@@ -84,10 +91,12 @@ async function openConfigModal(prefix, name) {
     document.getElementById('config-key-prefix').value = prefix;
 
     try {
-        const [config, models] = await Promise.all([
+        const [configResponse, modelsResponse] = await Promise.all([
             authFetch(`/api/auth/api-keys/${prefix}/config/`),
             authFetch('/api/vision/models/')
         ]);
+        const [config, models] = await Promise.all([configResponse.json(), modelsResponse.json()]);
+
         document.getElementById('flash_enabled').checked = config.flash_enabled;
         document.getElementById('delay_seconds').value = config.delay_seconds;
         document.getElementById('prompt_context').value = config.prompt_context || '';
@@ -145,7 +154,9 @@ async function handleConfigUpdate(event) {
 async function fetchAnalysisHistory() {
     const historyContainer = document.getElementById('history-container');
     try {
-        const logs = await authFetch('/api/vision/logs/');
+        const response = await authFetch('/api/vision/logs/');
+        const logs = await response.json();
+
         historyContainer.innerHTML = '';
         if (logs.length === 0) {
             historyContainer.innerHTML = '<p>هیچ تحلیل سابقی یافت نشد.</p>';
@@ -168,8 +179,8 @@ function createHistoryCard(log) {
     const formattedDate = new Date(log.created_at).toLocaleString('fa-IR', {dateStyle: 'short', timeStyle: 'short'});
     card.innerHTML = `
         <div class="images">
-            <a href="${log.image1}" target="_blank"><img class="lazy" data-src="${log.image1}" src="https://placehold.co/400x300/f8f9fa/dee2e6?text=Loading..." alt="Before"></a>
-            <a href="${log.image2}" target="_blank"><img class="lazy" data-src="${log.image2}" src="https://placehold.co/400x300/f8f9fa/dee2e6?text=Loading..." alt="After"></a>
+            <a href="${log.image1_url}" target="_blank"><img class="lazy" loading="lazy" data-src="${log.image1_url}" src="[https://placehold.co/400x300/f8f9fa/dee2e6?text=Loading]..." alt="Before"></a>
+            <a href="${log.image2_url}" target="_blank"><img class="lazy" loading="lazy" data-src="${log.image2_url}" src="[https://placehold.co/400x300/f8f9fa/dee2e6?text=Loading]..." alt="After"></a>
         </div>
         <div class="details">
             <p>${log.description || 'توضیحی ثبت نشده است.'}</p>
@@ -186,7 +197,18 @@ function setupLazyLoading() {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
                 const image = entry.target;
-                image.src = image.dataset.src;
+                const imageUrl = image.dataset.src;
+
+                authFetch(imageUrl)
+                    .then(response => response.blob())
+                    .then(blob => {
+                        image.src = URL.createObjectURL(blob);
+                    })
+                    .catch(error => {
+                        console.error(`Could not load image: ${imageUrl}`, error);
+                        image.alt = "Failed to load image";
+                    });
+
                 image.classList.remove('lazy');
                 observer.unobserve(image);
             }
@@ -195,7 +217,7 @@ function setupLazyLoading() {
     lazyImages.forEach(image => imageObserver.observe(image));
 }
 
-function setupApiKeyManagement() {
+async function setupApiKeyManagement() {
     const generateBtn = document.getElementById('generate-key-btn');
     const apiKeyListContainer = document.getElementById('api-key-list');
     generateBtn.addEventListener('click', handleGenerateKey);
@@ -218,7 +240,8 @@ function setupApiKeyManagement() {
 async function fetchApiKeys() {
     const apiKeyListContainer = document.getElementById('api-key-list');
     try {
-        const keys = await authFetch('/api/auth/api-keys/');
+        const response = await authFetch('/api/auth/api-keys/');
+        const keys = await response.json();
         apiKeyListContainer.innerHTML = '';
         if (keys.length === 0) {
             apiKeyListContainer.innerHTML = '<p>هیچ کلید API ساخته نشده است.</p>';
@@ -253,10 +276,11 @@ async function handleGenerateKey() {
     const keyNameInput = document.getElementById('api-key-name');
     const name = keyNameInput.value.trim() || 'new-esp32-device';
     try {
-        const newKeyData = await authFetch('/api/auth/api-keys/', {
+        const response = await authFetch('/api/auth/api-keys/', {
             method: 'POST',
             body: JSON.stringify({name: name})
         });
+        const newKeyData = await response.json();
         const newKeyContainer = document.getElementById('new-api-key-container');
         const newKeyElement = document.getElementById('new-api-key');
         newKeyElement.textContent = newKeyData.key;
