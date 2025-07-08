@@ -32,6 +32,10 @@ class ChangeDetectionViewSet(mixins.ListModelMixin,
     permission_classes = [HasUserAPIKey | IsAuthenticated]
     queryset = ChangeDetectionLog.objects.all()
 
+    def get_queryset(self):
+        user = self.request.user
+        return ChangeDetectionLog.objects.filter(user=user)
+
     def get_serializer_class(self):
         if self.action == 'create':
             return AnalysisRequestSerializer
@@ -66,6 +70,7 @@ class ChangeDetectionViewSet(mixins.ListModelMixin,
         prompt_context_to_use = validated_data.get('prompt_context') or device_config.prompt_context
 
         log_instance = ChangeDetectionLog.objects.create(
+            user=request.user,
             image1=validated_data['image1'],
             image2=validated_data['image2'],
             model_used=model_to_use
@@ -88,20 +93,6 @@ class ChangeDetectionViewSet(mixins.ListModelMixin,
 
         final_serializer = ChangeDetectionLogSerializer(log_instance)
         return Response(final_serializer.data, status=status.HTTP_201_CREATED)
-
-
-class DeviceConfigurationView(generics.RetrieveUpdateAPIView):
-    """
-    Retrieve and update the global device and AI configuration.
-    There is only one configuration object in the system.
-    """
-    queryset = DeviceConfiguration.objects.all()
-    serializer_class = DeviceConfigurationSerializer
-    permission_classes = [HasUserAPIKey | IsAuthenticated]
-
-    def get_object(self):
-        obj, created = DeviceConfiguration.objects.get_or_create(pk=1)
-        return obj
 
 
 class AvailableModelsView(generics.GenericAPIView):

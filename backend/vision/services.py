@@ -16,7 +16,11 @@ def get_change_description_from_llm(image1_base64: str, image2_base64: str, mode
         "Authorization": f"Bearer {api_key}",
     }
 
-    base_prompt = "You are an AI assistant for environmental monitoring. Analyze the two provided images, taken seconds apart. Identify significant, real-world changes. Focus on: objects that have appeared, disappeared, or moved; the state of devices (e.g., a light on/off); or the presence of people/animals. Please IGNORE minor changes in lighting, shadows, or camera noise. Provide a concise summary of tangible differences in Farsi."
+    base_prompt = "You are an AI assistant for environmental monitoring. Analyze the two provided images, " \
+                  "taken seconds apart. Identify significant, real-world changes. Focus on: objects that have " \
+                  "appeared, disappeared, or moved; the state of devices (e.g., a light on/off); or the presence of " \
+                  "people/animals. Please IGNORE minor changes in lighting, shadows, or camera noise. Provide a " \
+                  "concise summary of tangible differences in Farsi."
 
     final_prompt = f"{base_prompt} Specific focus for this analysis: {prompt_context}" if prompt_context else base_prompt
 

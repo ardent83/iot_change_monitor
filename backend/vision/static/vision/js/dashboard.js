@@ -1,8 +1,3 @@
-/* ==========================================================================
-فایل: vision/static/vision/js/dashboard.js (نسخه نهایی و اصلاح شده)
-========================================================================== */
-
-// --- Helper Functions for Authenticated API calls ---
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -25,43 +20,25 @@ async function authFetch(url, options = {}) {
         'Content-Type': 'application/json',
         'X-CSRFToken': csrftoken,
     };
-
-    const config = {
-        ...options,
-        // --- FIX: Sending credentials (cookies) with the request ---
-        credentials: 'include',
-        headers: {
-            ...defaultHeaders,
-            ...options.headers,
-        },
-    };
-
+    const config = {...options, credentials: 'include', headers: {...defaultHeaders, ...options.headers}};
     const response = await fetch(url, config);
-
     if (response.status === 403 || response.status === 401) {
         window.location.href = '/auth/login/';
         throw new Error('Authentication failed');
     }
-
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
     }
-
-    if (response.status === 204) {
-        return null;
-    }
+    if (response.status === 204) return null;
     return response.json();
 }
 
-// --- Main Application Logic ---
 document.addEventListener('DOMContentLoaded', () => {
-    authFetch('/api/vision/config/').then(() => {
+    authFetch('/api/auth/api-keys/').then(() => {
         setupWebSocket();
-        fetchConfigAndPopulateForm();
         fetchAnalysisHistory();
         setupApiKeyManagement();
-
         document.getElementById('config-form').addEventListener('submit', handleConfigUpdate);
         document.getElementById('logout-btn').addEventListener('click', handleLogout);
     }).catch(error => {
@@ -69,11 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// --- WebSocket for Live Logs ---
 function setupWebSocket() {
     const logContainer = document.getElementById('log-container');
     const logSocket = new WebSocket(`ws://${window.location.host}/ws/logs/`);
-
     logSocket.onopen = (e) => addLogEntry('--- Connected to Log Server ---', '#007bff');
     logSocket.onmessage = (e) => {
         const data = JSON.parse(e.data);
@@ -93,14 +68,26 @@ function setupWebSocket() {
     }
 }
 
-// --- Device Configuration ---
-async function fetchConfigAndPopulateForm() {
+const modal = document.getElementById('config-modal');
+const closeBtn = document.querySelector('.close-button');
+closeBtn.onclick = () => {
+    modal.style.display = "none";
+};
+window.onclick = (event) => {
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+};
+
+async function openConfigModal(prefix, name) {
+    document.getElementById('modal-key-name').textContent = name;
+    document.getElementById('config-key-prefix').value = prefix;
+
     try {
         const [config, models] = await Promise.all([
-            authFetch('/api/vision/config/'),
+            authFetch(`/api/auth/api-keys/${prefix}/config/`),
             authFetch('/api/vision/models/')
         ]);
-
         document.getElementById('flash_enabled').checked = config.flash_enabled;
         document.getElementById('delay_seconds').value = config.delay_seconds;
         document.getElementById('prompt_context').value = config.prompt_context || '';
@@ -117,18 +104,19 @@ async function fetchConfigAndPopulateForm() {
             modelSelect.appendChild(option);
         });
 
+        modal.style.display = "block";
     } catch (error) {
-        console.error("Failed to fetch configuration:", error);
-        document.getElementById('config-status').textContent = 'خطا در دریافت تنظیمات.';
+        console.error("Failed to fetch configuration for key:", prefix, error);
+        alert('خطا در دریافت تنظیمات دستگاه.');
     }
 }
 
 async function handleConfigUpdate(event) {
     event.preventDefault();
     const form = event.target;
+    const prefix = document.getElementById('config-key-prefix').value;
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
-
     data.flash_enabled = document.getElementById('flash_enabled').checked;
 
     const statusEl = document.getElementById('config-status');
@@ -136,43 +124,38 @@ async function handleConfigUpdate(event) {
     statusEl.style.color = 'var(--text-secondary)';
 
     try {
-        await authFetch('/api/vision/config/', {
+        await authFetch(`/api/auth/api-keys/${prefix}/config/`, {
             method: 'PATCH',
             body: JSON.stringify(data)
         });
-
         statusEl.textContent = 'تنظیمات با موفقیت ذخیره شد!';
         statusEl.style.color = 'var(--color-success)';
-
     } catch (error) {
         console.error("Failed to update configuration:", error);
         statusEl.textContent = 'خطا در ذخیره تنظیمات.';
         statusEl.style.color = 'var(--color-error)';
     } finally {
-        setTimeout(() => statusEl.textContent = '', 3000);
+        setTimeout(() => {
+            statusEl.textContent = '';
+            modal.style.display = "none";
+        }, 2000);
     }
 }
 
-// --- Analysis History with Lazy Loading ---
 async function fetchAnalysisHistory() {
     const historyContainer = document.getElementById('history-container');
     try {
         const logs = await authFetch('/api/vision/logs/');
-
         historyContainer.innerHTML = '';
         if (logs.length === 0) {
             historyContainer.innerHTML = '<p>هیچ تحلیل سابقی یافت نشد.</p>';
             return;
         }
-
         logs.forEach(log => {
             const card = createHistoryCard(log);
             historyContainer.appendChild(card);
         });
-
-        // After rendering all cards, set up lazy loading for the images
         setupLazyLoading();
-
     } catch (error) {
         console.error("Failed to fetch analysis history:", error);
         historyContainer.innerHTML = '<p>خطا در دریافت تاریخچه تحلیل‌ها.</p>';
@@ -183,8 +166,6 @@ function createHistoryCard(log) {
     const card = document.createElement('div');
     card.className = 'history-card';
     const formattedDate = new Date(log.created_at).toLocaleString('fa-IR', {dateStyle: 'short', timeStyle: 'short'});
-
-    // Use data-src for lazy loading and a placeholder in src
     card.innerHTML = `
         <div class="images">
             <a href="${log.image1}" target="_blank"><img class="lazy" data-src="${log.image1}" src="https://placehold.co/400x300/f8f9fa/dee2e6?text=Loading..." alt="Before"></a>
@@ -201,7 +182,6 @@ function createHistoryCard(log) {
 
 function setupLazyLoading() {
     const lazyImages = document.querySelectorAll('img.lazy');
-
     const imageObserver = new IntersectionObserver((entries, observer) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
@@ -212,20 +192,13 @@ function setupLazyLoading() {
             }
         });
     });
-
-    lazyImages.forEach(image => {
-        imageObserver.observe(image);
-    });
+    lazyImages.forEach(image => imageObserver.observe(image));
 }
 
-
-// --- API Key Management ---
 function setupApiKeyManagement() {
     const generateBtn = document.getElementById('generate-key-btn');
     const apiKeyListContainer = document.getElementById('api-key-list');
-
     generateBtn.addEventListener('click', handleGenerateKey);
-
     apiKeyListContainer.addEventListener('click', (event) => {
         if (event.target.classList.contains('delete-key-btn')) {
             const keyPrefix = event.target.dataset.prefix;
@@ -233,15 +206,19 @@ function setupApiKeyManagement() {
                 handleDeleteKey(keyPrefix);
             }
         }
+        if (event.target.classList.contains('config-btn')) {
+            const prefix = event.target.dataset.prefix;
+            const name = event.target.dataset.name;
+            openConfigModal(prefix, name);
+        }
     });
-
     fetchApiKeys();
 }
 
 async function fetchApiKeys() {
     const apiKeyListContainer = document.getElementById('api-key-list');
     try {
-        const keys = await authFetch('/auth/api/keys/');
+        const keys = await authFetch('/api/auth/api-keys/');
         apiKeyListContainer.innerHTML = '';
         if (keys.length === 0) {
             apiKeyListContainer.innerHTML = '<p>هیچ کلید API ساخته نشده است.</p>';
@@ -259,6 +236,7 @@ async function fetchApiKeys() {
                 </div>
                 <div>
                     <span class="key-date">ساخته شده در: ${formattedDate}</span>
+                    <button class="button button-secondary config-btn" data-prefix="${key.prefix}" data-name="${key.name}">تنظیمات</button>
                     <button class="button button-danger delete-key-btn" data-prefix="${key.prefix}">حذف</button>
                 </div>
             `;
@@ -273,23 +251,18 @@ async function fetchApiKeys() {
 
 async function handleGenerateKey() {
     const keyNameInput = document.getElementById('api-key-name');
-    const name = keyNameInput.value.trim() || 'esp32-device';
-
+    const name = keyNameInput.value.trim() || 'new-esp32-device';
     try {
-        const newKeyData = await authFetch('/auth/api/keys/', {
+        const newKeyData = await authFetch('/api/auth/api-keys/', {
             method: 'POST',
             body: JSON.stringify({name: name})
         });
-
         const newKeyContainer = document.getElementById('new-api-key-container');
         const newKeyElement = document.getElementById('new-api-key');
-
         newKeyElement.textContent = newKeyData.key;
         newKeyContainer.style.display = 'block';
-
         keyNameInput.value = '';
         fetchApiKeys();
-
     } catch (error) {
         console.error("Failed to generate API key:", error);
         alert('خطا در ساخت کلید جدید.');
@@ -298,7 +271,7 @@ async function handleGenerateKey() {
 
 async function handleDeleteKey(prefix) {
     try {
-        await authFetch(`/auth/api/keys/${prefix}/`, {
+        await authFetch(`/api/auth/api-keys/${prefix}/`, {
             method: 'DELETE',
         });
         fetchApiKeys();
@@ -308,10 +281,9 @@ async function handleDeleteKey(prefix) {
     }
 }
 
-// --- Logout ---
 async function handleLogout() {
     try {
-        await authFetch('/auth/api/logout/', {method: 'POST'});
+        await authFetch('/api/auth/logout/', {method: 'POST'});
         window.location.href = '/auth/login/';
     } catch (error) {
         console.error('Logout failed:', error);

@@ -5,6 +5,10 @@ from rest_framework.response import Response
 from .models import UserAPIKey
 from .serializers import UserRegisterSerializer, LoginSerializer, APIKeySerializer
 
+from rest_framework.decorators import action
+from vision.models import DeviceConfiguration
+from vision.serializers import DeviceConfigurationSerializer
+
 
 class LoginTemplateView(TemplateView):
     template_name = "authentication/login.html"
@@ -65,3 +69,23 @@ class APIKeyViewSet(viewsets.ViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
         except UserAPIKey.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['get', 'patch'], url_path='config')
+    def config(self, request, pk=None):
+        try:
+            api_key = UserAPIKey.objects.get(prefix=pk, user=request.user)
+            config_instance = api_key.config
+        except UserAPIKey.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except DeviceConfiguration.DoesNotExist:
+            config_instance = DeviceConfiguration.objects.create(api_key=api_key)
+
+        if request.method == 'GET':
+            serializer = DeviceConfigurationSerializer(config_instance)
+            return Response(serializer.data)
+
+        elif request.method == 'PATCH':
+            serializer = DeviceConfigurationSerializer(config_instance, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)

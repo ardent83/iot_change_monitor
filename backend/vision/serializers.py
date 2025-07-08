@@ -4,9 +4,12 @@ from .enums import OpenAIVisionModels
 
 
 class ChangeDetectionLogSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)
+
     class Meta:
         model = ChangeDetectionLog
-        fields = '__all__'
+        fields = ['id', 'user', 'image1', 'image2', 'model_used', 'description', 'created_at']
+        read_only_fields = ['id', 'user', 'description', 'created_at']
 
 
 class AnalysisRequestSerializer(serializers.Serializer):
