@@ -1,5 +1,6 @@
 from rest_framework.authentication import BaseAuthentication
 from rest_framework import exceptions
+from drf_spectacular.extensions import OpenApiAuthenticationExtension
 from .models import UserAPIKey
 
 
@@ -16,3 +17,16 @@ class APIKeyAuthentication(BaseAuthentication):
             raise exceptions.AuthenticationFailed('Invalid API Key provided.')
 
         return user, api_key
+
+
+class APIKeyAuthenticationScheme(OpenApiAuthenticationExtension):
+    target_class = 'authentication.authentication.APIKeyAuthentication'
+    name = 'APIKeyAuth'
+
+    def get_security_definition(self, auto_schema):
+        return {
+            'type': 'apiKey',
+            'in': 'header',
+            'name': 'X-Api-Key',
+            'description': 'API Key for device-to-server authentication.'
+        }

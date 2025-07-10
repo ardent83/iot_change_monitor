@@ -177,12 +177,16 @@ LOGOUT_REDIRECT_URL = '/auth/login/'
 GRIP_URL = 'http://pushpin:5561'
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Project API Documentation',
-    'DESCRIPTION': 'documentation',
+    'TITLE': 'IoT AI Monitor API',
+    'DESCRIPTION': 'API documentation for the smart monitoring project.',
     'VERSION': '1.0.0',
+    'AUTH_EXTENSIONS': {
+        'APIKeyAuth': 'authentication.authentication.APIKeyAuthenticationScheme',
+    },
     'SERVE_INCLUDE_SCHEMA': False,
     'SCHEMA_PATH_PREFIX_TRIM': False,
-    'SCHEMA_PATH_PREFIX': '/api'
+    'SCHEMA_PATH_PREFIX': '/api',
+    'COMPONENT_SPLIT_REQUEST': True,
 }
 
 
