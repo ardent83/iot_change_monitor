@@ -4,6 +4,7 @@ import base64
 import logging
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +23,10 @@ def get_change_description_from_llm(image1_base64: str, image2_base64: str, mode
         "Authorization": f"Bearer {api_key}",
     }
 
-    base_prompt = "You are an AI assistant for environmental monitoring. Analyze the two provided images, " \
-                  "taken seconds apart. Identify significant, real-world changes. Focus on: objects that have " \
-                  "appeared, disappeared, or moved; the state of devices (e.g., a light on/off); or the presence of " \
-                  "people/animals. Please IGNORE minor changes in lighting, shadows, or camera noise. Provide a " \
-                  "concise summary of tangible differences in Farsi."
+    current_time = timezone.localtime(timezone.now()).strftime('%Y-%m-%d %H:%M:%S')
+    time_context = f"System Context: The current time of analysis is {current_time}. Please consider this time in your response."
 
-    final_prompt = f"{base_prompt} Specific focus for this analysis: {prompt_context}" if prompt_context else base_prompt
+    final_prompt = f"{time_context}\n\nUser's Prompt: {prompt_context}"
 
     image1_data_uri = f"data:image/jpeg;base64,{image1_base64}"
     image2_data_uri = f"data:image/jpeg;base64,{image2_base64}"
